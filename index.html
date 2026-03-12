@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Base - Fixed Chairs</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+</head>
+<body>
+    <!-- Import Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'https://unpkg.com/three@0.128.0/examples/jsm/controls/OrbitControls.js';
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a1a2a);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(8, 4.5, 14);
+        camera.lookAt(0, 3.2, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.3;
+        document.body.appendChild(renderer.domElement);
+
+        // --- CONTROLS ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;
+        controls.maxPolarAngle = Math.PI / 2.2;
+        controls.minDistance = 4;
+        controls.maxDistance = 200;
+        controls.enableZoom = true;
+        controls.enableRotate = true;
+        controls.enablePan = true;
+        controls.target.set(0, 3.2, 0);
+        controls.update();
+
+        // ============================================
+        // MODERN BASE ENVIRONMENT
+        // ============================================
+        
+        // --- Main Ground ---
+        const groundGeo = new THREE.CircleGeometry(80, 64);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x1a2a3a, roughness: 0.7 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.1;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Grid helper
+        const gridHelper = new THREE.GridHelper(80, 40, 0x4a8aff, 0x2a3a4a);
+        gridHelper.position.y = 0;
+        scene.add(gridHelper);
+
+        // ============================================
+        // MODERN FENCE WALL (FIXED - NO VARIABLE CONFLICTS)
+        // ============================================
+        
+        const fenceWallGroup = new THREE.Group();
+        const fenceWallRadius = 38;
+        const fenceWallSegments = 24;
+        const fenceWallHeight = 4.0;
+
+        // Materials for fence
+        const fencePostMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x8a9aaa, 
+            roughness: 0.3, 
+            metalness: 0.7
+        });
+        
+        const fenceRailMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x6a8a9a, 
+            roughness: 0.4, 
+            metalness: 0.5 
+        });
+        
+        const fenceGlassMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xaaccff, 
+            transparent: true, 
+            opacity: 0.25,
+            roughness: 0.1,
+            metalness: 0.2
+        });
+
+        const fenceLightMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x88aaff, 
+            emissive: 0x224466,
+            roughness: 0.2,
+            metalness: 0.3
+        });
+
+        // Store post positions
+        const fencePostPositions = [];
+
+        // Create fence posts
+        for (let i = 0; i < fenceWallSegments; i++) {
+            const angle = (i / fenceWallSegments) * Math.PI * 2;
+            const posX = Math.sin(angle) * fenceWallRadius;
+            const posZ = Math.cos(angle) * fenceWallRadius;
+            
+            // Store position
+            fencePostPositions.push({ x: posX, z: posZ });
+            
+            // Main post
+            const fencePost = new THREE.Mesh(new THREE.BoxGeometry(0.8, fenceWallHeight, 0.8), fencePostMaterial);
+            fencePost.position.set(posX, fenceWallHeight/2, posZ);
+            fencePost.castShadow = true;
+            fencePost.receiveShadow = true;
+            fenceWallGroup.add(fencePost);
+            
+            // Decorative post cap
+            const fenceCap = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8), fenceLightMaterial);
+            fenceCap.position.set(posX, fenceWallHeight, posZ);
+            fenceCap.castShadow = true;
+            fenceWallGroup.add(fenceCap);
+            
+            // Small light at top
+            const fenceLight = new THREE.PointLight(0x88aaff, 0.5, 15);
+            fenceLight.position.set(posX, fenceWallHeight - 0.3, posZ);
+            fenceWallGroup.add(fenceLight);
+        }
+
+        // Add glass panels and rails between posts
+        for (let i = 0; i < fencePostPositions.length; i++) {
+            const currentPost = fencePostPositions[i];
+            const nextPost = fencePostPositions[(i + 1) % fencePostPositions.length];
+            
+            const x1 = currentPost.x;
+            const z1 = currentPost.z;
+            const x2 = nextPost.x;
+            const z2 = nextPost.z;
+            
+            const midX = (x1 + x2) / 2;
+            const midZ = (z1 + z2) / 2;
+            
+            // Calculate distance between posts
+            const deltaX = x2 - x1;
+            const deltaZ = z2 - z1;
+            const panelDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+            
+            // Calculate angle for rotation
+            const panelAngle = Math.atan2(deltaX, deltaZ);
+            
+            // Glass panel
+            const glassPanel = new THREE.Mesh(new THREE.BoxGeometry(panelDistance - 0.8, fenceWallHeight - 1, 0.2), fenceGlassMaterial);
+            glassPanel.position.set(midX, fenceWallHeight/2, midZ);
+            glassPanel.rotation.y = panelAngle;
+            glassPanel.castShadow = true;
+            glassPanel.receiveShadow = true;
+            fenceWallGroup.add(glassPanel);
+            
+            // Horizontal rails
+            for (let r = 0; r < 3; r++) {
+                const railY = 1 + r * 1.3;
+                const rail = new THREE.Mesh(new THREE.BoxGeometry(panelDistance - 0.8, 0.1, 0.15), fenceRailMaterial);
+                rail.position.set(midX, railY, midZ);
+                rail.rotation.y = panelAngle;
+                rail.castShadow = true;
+                rail.receiveShadow = true;
+                fenceWallGroup.add(rail);
+            }
+        }
+
+        // Add decorative rings
+        const fenceRingMaterial = new THREE.MeshStandardMaterial({ color: 0x4a8aff, emissive: 0x224466 });
+        
+        const fenceBaseRing = new THREE.Mesh(new THREE.TorusGeometry(fenceWallRadius - 0.5, 0.2, 16, 64), fenceRingMaterial);
+        fenceBaseRing.rotation.x = Math.PI / 2;
+        fenceBaseRing.position.y = 0.3;
+        fenceBaseRing.castShadow = true;
+        fenceWallGroup.add(fenceBaseRing);
+
+        const fenceMidRing = new THREE.Mesh(new THREE.TorusGeometry(fenceWallRadius - 0.5, 0.15, 16, 64), fenceRingMaterial);
+        fenceMidRing.rotation.x = Math.PI / 2;
+        fenceMidRing.position.y = fenceWallHeight / 2;
+        fenceMidRing.castShadow = true;
+        fenceWallGroup.add(fenceMidRing);
+
+        const fenceTopRing = new THREE.Mesh(new THREE.TorusGeometry(fenceWallRadius - 0.5, 0.2, 16, 64), fenceRingMaterial);
+        fenceTopRing.rotation.x = Math.PI / 2;
+        fenceTopRing.position.y = fenceWallHeight - 0.2;
+        fenceTopRing.castShadow = true;
+        fenceWallGroup.add(fenceTopRing);
+
+        scene.add(fenceWallGroup);
+
+        // ============================================
+        // ORIGINAL PLATFORM
+        // ============================================
+        
+        const baseLevel1Mat = new THREE.MeshStandardMaterial({ color: 0x2a3a4a, roughness: 0.3, metalness: 0.4 });
+        const baseLevel1 = new THREE.Mesh(new THREE.CylinderGeometry(12, 13, 0.8, 8), baseLevel1Mat);
+        baseLevel1.position.y = 0.4;
+        baseLevel1.receiveShadow = true;
+        baseLevel1.castShadow = true;
+        scene.add(baseLevel1);
+
+        const ring1Mat = new THREE.MeshStandardMaterial({ color: 0x4a8aff, emissive: 0x224466 });
+        const ring1 = new THREE.Mesh(new THREE.TorusGeometry(12.2, 0.1, 8, 48), ring1Mat);
+        ring1.rotation.x = Math.PI / 2;
+        ring1.position.y = 0.8;
+        ring1.scale.set(1, 1, 0.2);
+        ring1.castShadow = true;
+        scene.add(ring1);
+
+        const baseLevel2Mat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.2, metalness: 0.5 });
+        const baseLevel2 = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 0.6, 8), baseLevel2Mat);
+        baseLevel2.position.y = 1.2;
+        baseLevel2.receiveShadow = true;
+        baseLevel2.castShadow = true;
+        scene.add(baseLevel2);
+
+        const ring2Mat = new THREE.MeshStandardMaterial({ color: 0x8a4aff, emissive: 0x442266 });
+        const ring2 = new THREE.Mesh(new THREE.TorusGeometry(10.2, 0.08, 8, 48), ring2Mat);
+        ring2.rotation.x = Math.PI / 2;
+        ring2.position.y = 1.5;
+        ring2.scale.set(1, 1, 0.2);
+        ring2.castShadow = true;
+        scene.add(ring2);
+
+        const topPlatformMat = new THREE.MeshStandardMaterial({ color: 0x4a5a6a, roughness: 0.2, metalness: 0.6 });
+        const topPlatform = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.5, 8), topPlatformMat);
+        topPlatform.position.y = 1.8;
+        topPlatform.receiveShadow = true;
+        topPlatform.castShadow = true;
+        scene.add(topPlatform);
+
+        const edgeRingMat = new THREE.MeshStandardMaterial({ color: 0x6a8aff, emissive: 0x224466 });
+        const edgeRing = new THREE.Mesh(new THREE.TorusGeometry(8.1, 0.06, 8, 48), edgeRingMat);
+        edgeRing.rotation.x = Math.PI / 2;
+        edgeRing.position.y = 2.05;
+        edgeRing.scale.set(1, 1, 0.2);
+        edgeRing.castShadow = true;
+        scene.add(edgeRing);
+
+        // --- Glass spheres ---
+        const sphereMat = new THREE.MeshStandardMaterial({ color: 0x6a8aff, emissive: 0x224466, transparent: true, opacity: 0.7 });
+        for (let i = 0; i < 12; i++) {
+            const angle = (i / 12) * Math.PI * 2;
+            const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16), sphereMat);
+            sphere.position.set(Math.sin(angle) * 10, 0.8, Math.cos(angle) * 10);
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            scene.add(sphere);
+            
+            const innerLight = new THREE.PointLight(0x6a8aff, 0.4, 8);
+            innerLight.position.set(Math.sin(angle) * 10, 0.8, Math.cos(angle) * 10);
+            scene.add(innerLight);
+        }
+
+        // --- Planters ---
+        function createModernPlanter(x, z) {
+            const group = new THREE.Group();
+            
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.3, metalness: 0.5 });
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 0.6, 6), baseMat);
+            base.position.y = 0.3;
+            base.castShadow = true;
+            base.receiveShadow = true;
+            group.add(base);
+            
+            const topMat = new THREE.MeshStandardMaterial({ color: 0x4a5a6a, roughness: 0.2, metalness: 0.6 });
+            const top = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.8, 0.2, 6), topMat);
+            top.position.y = 0.7;
+            top.castShadow = true;
+            top.receiveShadow = true;
+            group.add(top);
+            
+            const stemMat = new THREE.MeshStandardMaterial({ color: 0x4a8a5a });
+            for (let j = 0; j < 5; j++) {
+                const plantAngle = (j / 5) * Math.PI * 2;
+                const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 4), stemMat);
+                stem.position.set(Math.cos(plantAngle) * 0.3, 1.2, Math.sin(plantAngle) * 0.3);
+                stem.castShadow = true;
+                group.add(stem);
+                
+                const leafMat = new THREE.MeshStandardMaterial({ color: 0x6aaa6a });
+                const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.4, 4), leafMat);
+                leaf.position.set(Math.cos(plantAngle) * 0.3, 1.7, Math.sin(plantAngle) * 0.3);
+                leaf.castShadow = true;
+                group.add(leaf);
+            }
+            
+            group.position.set(x, 0.2, z);
+            return group;
+        }
+
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const radius = 11;
+            const x = Math.sin(angle) * radius;
+            const z = Math.cos(angle) * radius;
+            scene.add(createModernPlanter(x, z));
+        }
+
+        // --- Fountains ---
+        function createFountain(x, z) {
+            const group = new THREE.Group();
+            
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.3, metalness: 0.5 });
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 0.3, 8), baseMat);
+            base.position.y = 0.15;
+            base.castShadow = true;
+            base.receiveShadow = true;
+            group.add(base);
+            
+            const columnMat = new THREE.MeshStandardMaterial({ color: 0x4a5a6a, roughness: 0.2, metalness: 0.6 });
+            const column = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1.2, 8), columnMat);
+            column.position.y = 0.9;
+            column.castShadow = true;
+            column.receiveShadow = true;
+            group.add(column);
+            
+            const bowlMat = new THREE.MeshStandardMaterial({ color: 0x5a6a7a, roughness: 0.2, metalness: 0.7 });
+            const bowl = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 0.6, 0.2, 8), bowlMat);
+            bowl.position.y = 1.6;
+            bowl.castShadow = true;
+            bowl.receiveShadow = true;
+            group.add(bowl);
+            
+            const waterMat = new THREE.MeshStandardMaterial({ color: 0x4a8aff, emissive: 0x224466, transparent: true, opacity: 0.6 });
+            const water = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8), waterMat);
+            water.position.y = 1.8;
+            water.castShadow = true;
+            group.add(water);
+            
+            group.position.set(x, 0, z);
+            return group;
+        }
+
+        scene.add(createFountain(12, 12));
+        scene.add(createFountain(-12, -12));
+        scene.add(createFountain(12, -12));
+        scene.add(createFountain(-12, 12));
+
+        // --- Light pillars ---
+        function createLightPillar(x, z) {
+            const group = new THREE.Group();
+            
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x3a4a5a, roughness: 0.2, metalness: 0.7 });
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 3, 8), pillarMat);
+            pillar.position.y = 1.5;
+            pillar.castShadow = true;
+            pillar.receiveShadow = true;
+            group.add(pillar);
+            
+            const lightMat = new THREE.MeshStandardMaterial({ color: 0x8aafff, emissive: 0x224466 });
+            const light = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8), lightMat);
+            light.position.y = 3.0;
+            light.castShadow = true;
+            group.add(light);
+            
+            const pointLight = new THREE.PointLight(0x8aafff, 0.8, 10);
+            pointLight.position.y = 3.0;
+            group.add(pointLight);
+            
+            group.position.set(x, 0, z);
+            return group;
+        }
+
+        scene.add(createLightPillar(14, 0));
+        scene.add(createLightPillar(-14, 0));
+        scene.add(createLightPillar(0, 14));
+        scene.add(createLightPillar(0, -14));
+
+        // ============================================
+        // MODERN PARASOL
+        // ============================================
+        
+        const parasolGroup = new THREE.Group();
+
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x8a9aaa, roughness: 0.2, metalness: 0.9 });
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 6.0, 8), poleMat);
+        pole.position.y = 3.0;
+        pole.castShadow = true;
+        pole.receiveShadow = true;
+        parasolGroup.add(pole);
+
+        const ringMat = new THREE.MeshStandardMaterial({ color: 0x8aafff, roughness: 0.2, metalness: 0.8, emissive: 0x224466 });
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.05, 8, 24), ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = 1.2 + i * 1.2;
+            ring.castShadow = true;
+            parasolGroup.add(ring);
+        }
+
+        const canopyMat = new THREE.MeshStandardMaterial({ color: 0x2a3a4a, roughness: 0.3, metalness: 0.2 });
+        const canopy = new THREE.Mesh(new THREE.ConeGeometry(4.5, 2.2, 8), canopyMat);
+        canopy.position.y = 5.5;
+        canopy.castShadow = true;
+        canopy.receiveShadow = true;
+        parasolGroup.add(canopy);
+
+        const geoRingMat = new THREE.MeshStandardMaterial({ color: 0x8aafff, roughness: 0.2, metalness: 0.8 });
+        for (let i = 0; i < 3; i++) {
+            const yPos = 5.2 + i * 0.4;
+            const radius = 4.2 - i * 0.8;
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.06, 8, 32), geoRingMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = yPos;
+            ring.scale.set(1, 1, 0.2);
+            ring.castShadow = true;
+            parasolGroup.add(ring);
+        }
+
+        const finialMat = new THREE.MeshStandardMaterial({ color: 0x8aafff, emissive: 0x4466aa });
+        const finial = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16), finialMat);
+        finial.position.y = 6.8;
+        finial.castShadow = true;
+        parasolGroup.add(finial);
+
+        const hangingRingMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.3, metalness: 0.6, emissive: 0x332211 });
+        const hangingRing = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.1, 16, 48), hangingRingMat);
+        hangingRing.rotation.x = Math.PI / 2;
+        hangingRing.position.y = 4.8;
+        hangingRing.castShadow = true;
+        parasolGroup.add(hangingRing);
+
+        parasolGroup.position.set(0, 1.8, 0);
+        scene.add(parasolGroup);
+
+        // ============================================
+        // BEAUTIFUL LAMPS
+        // ============================================
+        
+        function createBeautifulLamp(angle) {
+            const group = new THREE.Group();
+            
+            const radius = 3.5;
+            const parasolBaseY = 1.8;
+            const attachmentY = parasolBaseY + 4.8;
+            const lampY = parasolBaseY + 2.4;
+            
+            const lampX = Math.sin(angle) * radius;
+            const lampZ = Math.cos(angle) * radius;
+            
+            const chainMat = new THREE.MeshStandardMaterial({ color: 0xffaa44, roughness: 0.3, metalness: 0.8, emissive: 0x442200 });
+            
+            const linkCount = 8;
+            for (let j = 0; j < linkCount; j++) {
+                const t = j / (linkCount - 1);
+                const linkY = attachmentY - (attachmentY - lampY) * t;
+                
+                const link = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.03, 8, 12, Math.PI), chainMat);
+                link.rotation.y = angle;
+                link.rotation.x = Math.PI / 2;
+                link.rotation.z = Math.PI / 4;
+                link.position.set(lampX, linkY, lampZ);
+                link.castShadow = true;
+                group.add(link);
+            }
+            
+            const topCrystalMat = new THREE.MeshStandardMaterial({ color: 0x88aaff, emissive: 0x224466, transparent: true, opacity: 0.8 });
+            const topCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0), topCrystalMat);
+            topCrystal.position.set(lampX, attachmentY - 0.2, lampZ);
+            topCrystal.castShadow = true;
+            group.add(topCrystal);
+            
+            const housingMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.2, metalness: 0.8 });
+            
+            const upperDome = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 0, Math.PI), housingMat);
+            upperDome.rotation.x = Math.PI;
+            upperDome.position.y = lampY;
+            upperDome.castShadow = true;
+            upperDome.receiveShadow = true;
+            group.add(upperDome);
+            
+            const lowerRing = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.04, 8, 16), housingMat);
+            lowerRing.rotation.x = Math.PI / 2;
+            lowerRing.position.y = lampY - 0.15;
+            lowerRing.castShadow = true;
+            group.add(lowerRing);
+            
+            const glassMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffeedd, 
+                emissive: 0x442200, 
+                transparent: true, 
+                opacity: 0.3,
+                roughness: 0.1,
+                metalness: 0.1
+            });
+            const glassShade = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16), glassMat);
+            glassShade.scale.set(1, 0.6, 1);
+            glassShade.position.y = lampY - 0.1;
+            glassShade.castShadow = true;
+            group.add(glassShade);
+            
+            const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffaa44, emissive: 0xff5500 });
+            const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16), bulbMat);
+            bulb.position.y = lampY - 0.1;
+            bulb.castShadow = true;
+            group.add(bulb);
+            
+            const bottomMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.2, metalness: 0.7 });
+            const bottom = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.2, 8), bottomMat);
+            bottom.position.y = lampY - 0.3;
+            bottom.castShadow = true;
+            group.add(bottom);
+            
+            const lampLight = new THREE.PointLight(0xffaa66, 1.2, 10);
+            lampLight.position.y = lampY - 0.1;
+            group.add(lampLight);
+            
+            const bottomCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.08, 0), topCrystalMat);
+            bottomCrystal.position.y = lampY - 0.4;
+            bottomCrystal.castShadow = true;
+            group.add(bottomCrystal);
+            
+            return group;
+        }
+
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2;
+            scene.add(createBeautifulLamp(angle));
+        }
+
+        // ============================================
+        // TABLE
+        // ============================================
+        
+        const tableGroup = new THREE.Group();
+
+        const tableTopMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+        const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 0.15, 32), tableTopMat);
+        tableTop.position.y = 2.2;
+        tableTop.castShadow = true;
+        tableTop.receiveShadow = true;
+        tableGroup.add(tableTop);
+
+        const tableEdgeMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.2, metalness: 0.8 });
+        const tableEdge = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.06, 8, 32), tableEdgeMat);
+        tableEdge.rotation.x = Math.PI / 2;
+        tableEdge.position.y = 2.25;
+        tableEdge.scale.set(1, 1, 0.2);
+        tableEdge.castShadow = true;
+        tableGroup.add(tableEdge);
+
+        const tableBaseMat = new THREE.MeshStandardMaterial({ color: 0x8a9aaa, roughness: 0.2, metalness: 0.7 });
+        const tableBase = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.2, 1.5, 8), tableBaseMat);
+        tableBase.position.y = 1.3;
+        tableBase.castShadow = true;
+        tableBase.receiveShadow = true;
+        tableGroup.add(tableBase);
+
+        tableGroup.position.set(0, 1.8, 0);
+        scene.add(tableGroup);
+
+        // ============================================
+        // TWO CHAIRS
+        // ============================================
+        
+        function createMinimalistChair(x, z, cushionColor, rotationY) {
+            const group = new THREE.Group();
+
+            const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4, metalness: 0.2 });
+            const cushionMat = new THREE.MeshStandardMaterial({ color: cushionColor, roughness: 0.5 });
+            
+            const seatBase = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 1.1), frameMat);
+            seatBase.position.y = 0.9;
+            seatBase.castShadow = true;
+            seatBase.receiveShadow = true;
+            group.add(seatBase);
+            
+            const seatCushion = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.15, 1.0), cushionMat);
+            seatCushion.position.y = 1.0;
+            seatCushion.castShadow = true;
+            seatCushion.receiveShadow = true;
+            group.add(seatCushion);
+
+            const backrest = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 0.1), frameMat);
+            backrest.position.y = 1.7;
+            backrest.position.z = -0.5;
+            backrest.castShadow = true;
+            backrest.receiveShadow = true;
+            group.add(backrest);
+            
+            const backCushion = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.1), cushionMat);
+            backCushion.position.y = 1.7;
+            backCushion.position.z = -0.45;
+            backCushion.castShadow = true;
+            backCushion.receiveShadow = true;
+            group.add(backCushion);
+
+            const armrestMat = frameMat;
+            
+            const leftArmrest = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 1.0), armrestMat);
+            leftArmrest.position.set(-0.6, 1.2, 0);
+            leftArmrest.castShadow = true;
+            group.add(leftArmrest);
+            
+            const rightArmrest = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 1.0), armrestMat);
+            rightArmrest.position.set(0.6, 1.2, 0);
+            rightArmrest.castShadow = true;
+            group.add(rightArmrest);
+
+            const legGeo = new THREE.CylinderGeometry(0.08, 0.06, 1.2, 6);
+            
+            const legPositions = [
+                { x: -0.45, z: -0.45 },
+                { x: 0.45, z: -0.45 },
+                { x: -0.45, z: 0.45 },
+                { x: 0.45, z: 0.45 }
+            ];
+            
+            legPositions.forEach(pos => {
+                const leg = new THREE.Mesh(legGeo, frameMat);
+                leg.position.set(pos.x, 0.6, pos.z);
+                leg.castShadow = true;
+                leg.receiveShadow = true;
+                group.add(leg);
+            });
+
+            group.position.set(x, 1.8, z);
+            group.rotation.y = rotationY;
+            return group;
+        }
+
+        scene.add(createMinimalistChair(0, -3.2, 0xFF6B6B, 0));
+        scene.add(createMinimalistChair(0, 3.2, 0x4ECDC4, Math.PI));
+
+        // ============================================
+        // ITEMS ON TABLE - CHANGED MILO TO GREEN
+        // ============================================
+        
+        const tableSurfaceY = 4.0;
+        
+        // MILO TIN - NOW GREEN (changed from orange/brown)
+        const miloGroup = new THREE.Group();
+        const miloBody = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.3, 16),
+            new THREE.MeshStandardMaterial({ color: 0x4CAF50, roughness: 0.3 })); // CHANGED TO GREEN
+        miloBody.position.y = 0.15;
+        miloGroup.add(miloBody);
+        
+        const miloLabel = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.08, 16),
+            new THREE.MeshStandardMaterial({ color: 0xFFD700, roughness: 0.2 })); // Gold label (kept)
+        miloLabel.position.y = 0.15;
+        miloGroup.add(miloLabel);
+        
+        const miloLid = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.05, 16),
+            new THREE.MeshStandardMaterial({ color: 0x2E7D32, roughness: 0.4 })); // Darker green lid
+        miloLid.position.y = 0.3;
+        miloGroup.add(miloLid);
+        
+        miloGroup.position.set(-1.0, tableSurfaceY + 0.15, 0.3);
+        scene.add(miloGroup);
+
+        // MILK TIN (unchanged - white with blue stripe)
+        const milkGroup = new THREE.Group();
+        const milkBody = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.26, 16),
+            new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.2 }));
+        milkBody.position.y = 0.13;
+        milkGroup.add(milkBody);
+        
+        const milkStripe = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.07, 16),
+            new THREE.MeshStandardMaterial({ color: 0x1E3A8A, roughness: 0.2 }));
+        milkStripe.position.y = 0.14;
+        milkGroup.add(milkStripe);
+        
+        const milkTop = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.04, 16),
+            new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.3, metalness: 0.5 }));
+        milkTop.position.y = 0.26;
+        milkGroup.add(milkTop);
+        
+        milkGroup.position.set(1.0, tableSurfaceY + 0.13, 0.3);
+        scene.add(milkGroup);
+
+        // CUPS (unchanged)
+        function createCup(x, z, color) {
+            const group = new THREE.Group();
+            
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.18, 12),
+                new THREE.MeshStandardMaterial({ color: color, roughness: 0.3 }));
+            body.position.y = 0.09;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+            
+            const handle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 6, 12, Math.PI/2),
+                new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.2 }));
+            handle.rotation.z = Math.PI/2;
+            handle.position.set(0.13, 0.1, 0);
+            handle.castShadow = true;
+            group.add(handle);
+            
+            group.position.set(x, tableSurfaceY + 0.09, z);
+            return group;
+        }
+
+        scene.add(createCup(-0.6, -0.6, 0xD2B48C));
+        scene.add(createCup(0.6, -0.6, 0x88CCFF));
+
+        // Centerpiece (unchanged)
+        const centerMat = new THREE.MeshStandardMaterial({ color: 0x8aafff, emissive: 0x224466 });
+        const centerpiece = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.12, 8), centerMat);
+        centerpiece.position.set(0, tableSurfaceY + 0.06, 0.9);
+        centerpiece.castShadow = true;
+        centerpiece.receiveShadow = true;
+        scene.add(centerpiece);
+
+        // ============================================
+        // LIGHTING
+        // ============================================
+        
+        const mainSpot = new THREE.SpotLight(0xffffff, 2.0);
+        mainSpot.position.set(0, 7, 3);
+        mainSpot.target.position.set(0, tableSurfaceY, 0);
+        mainSpot.angle = 0.3;
+        mainSpot.penumbra = 0.2;
+        mainSpot.castShadow = true;
+        scene.add(mainSpot);
+        scene.add(mainSpot.target);
+
+        const fillLight1 = new THREE.PointLight(0xffffff, 0.8, 15);
+        fillLight1.position.set(4, 5, 4);
+        scene.add(fillLight1);
+
+        const fillLight2 = new THREE.PointLight(0xffffff, 0.8, 15);
+        fillLight2.position.set(-4, 5, -4);
+        scene.add(fillLight2);
+
+        const frontLight = new THREE.PointLight(0xffffff, 1.0, 12);
+        frontLight.position.set(0, 4, 6);
+        scene.add(frontLight);
+
+        const ambientLight = new THREE.AmbientLight(0x404060, 0.8);
+        scene.add(ambientLight);
+
+        // ============================================
+        // ANIMATION
+        // ============================================
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
